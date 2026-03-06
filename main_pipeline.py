@@ -2,6 +2,7 @@ import cv2
 import requests
 import os
 import time
+import math
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from ultralytics import YOLO
@@ -139,6 +140,14 @@ def telegram_is_configured():
 # TELEGRAM_RENOTIFY_INTERVAL_SEC
 # - Interval kirim ulang notifikasi untuk pelanggaran yang sama (anti-spam).
 # - Contoh 300 = 5 menit.
+#
+# ALERT_SPATIAL_DISTANCE_PX
+# - Radius piksel untuk menganggap pelanggaran baru sebagai orang yang sama
+#   (berguna saat track ID ganti dari tracker).
+#
+# MIN_SEEN_FRAMES_FOR_REMOVE_ALERT
+# - APD harus terlihat minimal N frame sebelum boleh memicu
+#   "attempt_remove_<apd>", agar tidak mudah false alarm.
 # ================================================================
 
 # Ambang overlap APD ke person
@@ -163,10 +172,13 @@ FULLSCREEN_VIEW = True
 MISSING_FRAMES_THRESHOLD = 10
 NEVER_WEAR_FRAMES = 5
 TELEGRAM_RENOTIFY_INTERVAL_SEC = 300
+ALERT_SPATIAL_DISTANCE_PX = 100
+MIN_SEEN_FRAMES_FOR_REMOVE_ALERT = 3
 
 # State per track: umur, pernah_terlihat(set), hitungan_missing per apd
 tracked_states = {}
 last_violation_notification = {}
+recent_alert_locations = defaultdict(list)
 
 
 def bbox_iou(box_a, box_b):
@@ -190,6 +202,11 @@ def bbox_iou(box_a, box_b):
     if union <= 0:
         return 0.0
     return inter_area / union
+
+
+def bbox_center(box):
+    x1, y1, x2, y2 = box
+    return (x1 + x2) / 2.0, (y1 + y2) / 2.0
 
 
 def buka_kamera(index_opsi=(0, 1, 2)):
@@ -306,11 +323,25 @@ while cap.isOpened():
             detected_apd_per_person[best_person_id].add(apd_name)
 
     # Helper: laporkan pelanggaran (simpan, upload, catat)
-    def report_violation(tid, vtype, frame_img, current_present_apd):
+    def report_violation(tid, vtype, frame_img, current_present_apd, person_bbox):
         key_violation = (tid, vtype)
         now_ts = time.time()
         last_sent_ts = last_violation_notification.get(key_violation)
         if last_sent_ts is not None and (now_ts - last_sent_ts) < TELEGRAM_RENOTIFY_INTERVAL_SEC:
+            return
+
+        # Anti-duplicate lintas ID tracker: jika lokasinya sangat dekat dan masih dalam cooldown,
+        # anggap ini orang yang sama meskipun track ID berubah.
+        center_x, center_y = bbox_center(person_bbox)
+        pruned = []
+        suppress_by_location = False
+        for ts_prev, px_prev, py_prev in recent_alert_locations[vtype]:
+            if (now_ts - ts_prev) <= TELEGRAM_RENOTIFY_INTERVAL_SEC:
+                pruned.append((ts_prev, px_prev, py_prev))
+                if math.hypot(center_x - px_prev, center_y - py_prev) <= ALERT_SPATIAL_DISTANCE_PX:
+                    suppress_by_location = True
+        recent_alert_locations[vtype] = pruned
+        if suppress_by_location:
             return
 
         event_time = now_local_str()
@@ -358,6 +389,7 @@ while cap.isOpened():
 
                 pelanggar_tercatat.add(key_violation)
                 last_violation_notification[key_violation] = now_ts
+                recent_alert_locations[vtype].append((now_ts, center_x, center_y))
         except Exception as e:
             print(f"Terjadi kesalahan saat upload/kirim: {e}")
         finally:
@@ -369,6 +401,7 @@ while cap.isOpened():
         state = tracked_states.setdefault(person_id, {
             "age": 0,
             "ever": set(),
+            "seen_counts": defaultdict(int),
             "missing_counts": defaultdict(int),
         })
         state["age"] += 1
@@ -378,23 +411,40 @@ while cap.isOpened():
         for apd_name in APD_CLASS_MAP.values():
             if apd_name in current_present:
                 state["ever"].add(apd_name)
+                state["seen_counts"][apd_name] += 1
                 state["missing_counts"][apd_name] = 0
             else:
                 state["missing_counts"][apd_name] += 1
 
         # Deteksi: mencoba melepas (pernah kelihatan, lalu hilang beberapa frame)
         for apd_name in APD_CLASS_MAP.values():
-            if state["missing_counts"][apd_name] >= MISSING_FRAMES_THRESHOLD and apd_name in state["ever"]:
-                report_violation(person_id, f"attempt_remove_{apd_name}", frame, current_present)
+            if (
+                state["missing_counts"][apd_name] >= MISSING_FRAMES_THRESHOLD
+                and apd_name in state["ever"]
+                and state["seen_counts"][apd_name] >= MIN_SEEN_FRAMES_FOR_REMOVE_ALERT
+            ):
+                report_violation(
+                    person_id,
+                    f"attempt_remove_{apd_name}",
+                    frame,
+                    current_present,
+                    person_boxes[person_id],
+                )
 
         # Deteksi: tidak mengenakan semua APD (helm, rompi, masker)
         if state["age"] >= NEVER_WEAR_FRAMES and not any(apd in state["ever"] for apd in APD_CLASS_MAP.values()):
-            report_violation(person_id, "not_wearing_any_apd", frame, current_present)
+            report_violation(person_id, "not_wearing_any_apd", frame, current_present, person_boxes[person_id])
         else:
             # Deteksi per-APD jika hanya sebagian yang tidak pernah terlihat
             for apd_name in APD_CLASS_MAP.values():
                 if state["age"] >= NEVER_WEAR_FRAMES and apd_name not in state["ever"]:
-                    report_violation(person_id, f"not_wearing_{apd_name}", frame, current_present)
+                    report_violation(
+                        person_id,
+                        f"not_wearing_{apd_name}",
+                        frame,
+                        current_present,
+                        person_boxes[person_id],
+                    )
 
     # Tampilkan hasil secara visual di layar laptop
     cv2.imshow(WINDOW_NAME, results[0].plot())
