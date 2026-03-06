@@ -1,0 +1,20 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editor/OS files
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Runtime/temp outputs
+temp_pelanggar_*.jpg
+*.log
+
+# If you don't want to commit model weights, uncomment below:
+# *.pt
