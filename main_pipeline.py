@@ -168,6 +168,7 @@ CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 360
 INFERENCE_DOWNSCALE = 1.0  # set 0.75 atau 0.5 jika masih patah-patah
 FULLSCREEN_VIEW = True
+DISPLAY_UPSCALE = 2.0  # upscale tampilan agar teks lebih tajam saat fullscreen
 
 # Ambang frame dibuat kecil supaya respons lebih cepat
 MISSING_FRAMES_THRESHOLD = 10
@@ -306,21 +307,30 @@ while cap.isOpened():
 
         if cls == PERSON_CLASS_ID and conf_score >= PERSON_CONF_THRESHOLD and box.id is not None:
             person_track_id = int(box.id[0])
-            person_boxes[person_track_id] = xyxy
+            person_boxes[person_track_id] = {
+                "bbox": xyxy,
+                "conf": conf_score,
+            }
 
         if cls in APD_CLASS_MAP:
             apd_name = APD_CLASS_MAP[cls]
             min_apd_conf = APD_CONF_THRESHOLD.get(apd_name, CONF_THRESHOLD)
             if conf_score >= min_apd_conf:
-                apd_boxes.append((apd_name, xyxy))
+                apd_boxes.append({
+                    "name": apd_name,
+                    "bbox": xyxy,
+                    "conf": conf_score,
+                })
 
     # Associate APD -> person berdasarkan IoU terbesar
     detected_apd_per_person = defaultdict(set)
-    for apd_name, apd_box in apd_boxes:
+    for apd_item in apd_boxes:
+        apd_name = apd_item["name"]
+        apd_box = apd_item["bbox"]
         best_person_id = None
         best_iou = 0.0
-        for person_id, person_box in person_boxes.items():
-            iou = bbox_iou(apd_box, person_box)
+        for person_id, person_item in person_boxes.items():
+            iou = bbox_iou(apd_box, person_item["bbox"])
             if iou > best_iou:
                 best_iou = iou
                 best_person_id = person_id
@@ -438,12 +448,12 @@ while cap.isOpened():
                     f"attempt_remove_{apd_name}",
                     frame,
                     current_present,
-                    person_boxes[person_id],
+                    person_boxes[person_id]["bbox"],
                 )
 
         # Deteksi: tidak mengenakan semua APD (helm, rompi, masker)
         if state["age"] >= NEVER_WEAR_FRAMES and not any(apd in state["ever"] for apd in APD_CLASS_MAP.values()):
-            report_violation(person_id, "not_wearing_any_apd", frame, current_present, person_boxes[person_id])
+            report_violation(person_id, "not_wearing_any_apd", frame, current_present, person_boxes[person_id]["bbox"])
         else:
             # Deteksi per-APD jika hanya sebagian yang tidak pernah terlihat
             for apd_name in APD_CLASS_MAP.values():
@@ -453,20 +463,18 @@ while cap.isOpened():
                         f"not_wearing_{apd_name}",
                         frame,
                         current_present,
-                        person_boxes[person_id],
+                        person_boxes[person_id]["bbox"],
                     )
 
-    # Tampilkan hasil secara visual di layar laptop
+    # Tampilkan hasil visual pakai renderer bawaan YOLO:
+    # label lebih rapi, support semua kelas, dan warna otomatis per kelas.
     display_img = results[0].plot()
 
-    # Gambar label ID + status APD di frame
-    for pid, bbox in person_boxes.items():
-        x1, y1, x2, y2 = map(int, bbox)
-        status = ",".join(sorted(detected_apd_per_person.get(pid, set()))) or "no_apd"
-        label = f"ID {pid}: {status}"
-        color = (0, 255, 0) if status != "no_apd" else (0, 165, 255)
-        cv2.rectangle(display_img, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(display_img, label, (x1, max(10, y1 - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+    # Optional upscale setelah plotting agar lebih nyaman di fullscreen.
+    if DISPLAY_UPSCALE > 1.0:
+        up_w = int(display_img.shape[1] * DISPLAY_UPSCALE)
+        up_h = int(display_img.shape[0] * DISPLAY_UPSCALE)
+        display_img = cv2.resize(display_img, (up_w, up_h), interpolation=cv2.INTER_CUBIC)
 
     # Jika split_view aktif, buat panel kanan dengan riwayat pelanggaran
     if split_view:
