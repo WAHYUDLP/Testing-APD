@@ -108,6 +108,31 @@ def telegram_is_configured():
         and TELEGRAM_CHAT_ID != "CHAT_ID_GRUP"
     )
 
+# ======================= KAMUS KONFIGURASI =======================
+# CONF_THRESHOLD
+# - Minimal confidence deteksi dari YOLO (0.0 - 1.0).
+# - Lebih kecil: lebih sensitif (objek kecil lebih mungkin terdeteksi), tapi false positive bisa naik.
+# - Lebih besar: deteksi lebih ketat, tapi objek kecil/jauh bisa terlewat.
+#
+# APD_PERSON_IOU_THRESHOLD
+# - Minimal IoU agar box APD dianggap milik box person.
+# - Karena APD kecil (mask/helmet), threshold dibuat kecil.
+#
+# INFERENCE_DOWNSCALE
+# - Skala resize frame sebelum inferensi YOLO.
+# - 1.0 = ukuran asli, 0.75 = 75%, 0.5 = 50%.
+# - Lebih kecil: FPS naik, akurasi bisa turun.
+#
+# MISSING_FRAMES_THRESHOLD
+# - Jumlah frame APD hilang berturut-turut (padahal pernah terlihat)
+#   sebelum dianggap "attempt_remove_<apd>".
+#
+# NEVER_WEAR_FRAMES
+# - Umur minimal track (dalam frame) sebelum sistem menilai
+#   "not_wearing_any_apd" atau "not_wearing_<apd>".
+# - Tujuannya menghindari vonis terlalu cepat saat track baru muncul.
+# ================================================================
+
 # Ambang overlap APD ke person
 APD_PERSON_IOU_THRESHOLD = 0.01
 
