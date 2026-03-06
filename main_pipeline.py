@@ -3,6 +3,7 @@ import requests
 import os
 import time
 import math
+import numpy as np
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from ultralytics import YOLO
@@ -179,6 +180,7 @@ MIN_SEEN_FRAMES_FOR_REMOVE_ALERT = 3
 tracked_states = {}
 last_violation_notification = {}
 recent_alert_locations = defaultdict(list)
+recent_violations = []
 
 
 def bbox_iou(box_a, box_b):
@@ -245,6 +247,9 @@ if FULLSCREEN_VIEW:
     cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     
 pelanggar_tercatat = set()
+
+# UI modes
+split_view = False
 
 # Runtime toggles
 monitoring_enabled = True
@@ -390,6 +395,11 @@ while cap.isOpened():
                 pelanggar_tercatat.add(key_violation)
                 last_violation_notification[key_violation] = now_ts
                 recent_alert_locations[vtype].append((now_ts, center_x, center_y))
+                # Simpan ringkasan pelanggaran untuk tampilan UI
+                recent_violations.insert(0, (now_ts, f"{event_time} | ID {tid} | {vtype}"))
+                # batasi panjang list
+                if len(recent_violations) > 20:
+                    recent_violations.pop()
         except Exception as e:
             print(f"Terjadi kesalahan saat upload/kirim: {e}")
         finally:
@@ -447,7 +457,40 @@ while cap.isOpened():
                     )
 
     # Tampilkan hasil secara visual di layar laptop
-    cv2.imshow(WINDOW_NAME, results[0].plot())
+    display_img = results[0].plot()
+
+    # Gambar label ID + status APD di frame
+    for pid, bbox in person_boxes.items():
+        x1, y1, x2, y2 = map(int, bbox)
+        status = ",".join(sorted(detected_apd_per_person.get(pid, set()))) or "no_apd"
+        label = f"ID {pid}: {status}"
+        color = (0, 255, 0) if status != "no_apd" else (0, 165, 255)
+        cv2.rectangle(display_img, (x1, y1), (x2, y2), color, 2)
+        cv2.putText(display_img, label, (x1, max(10, y1 - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+    # Jika split_view aktif, buat panel kanan dengan riwayat pelanggaran
+    if split_view:
+        panel_w = 380
+        h = display_img.shape[0]
+        panel = np.zeros((h, panel_w, 3), dtype=np.uint8)
+        panel[:] = (30, 30, 30)
+        y = 30
+        cv2.putText(panel, "Recent Violations", (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (220, 220, 220), 2)
+        for ts, msg in recent_violations[:12]:
+            timestr = datetime.fromtimestamp(ts).strftime("%H:%M:%S")
+            line = f"{timestr} {msg.split('|',1)[1]}"
+            cv2.putText(panel, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1)
+            y += 20
+            if y > h - 20:
+                break
+
+        try:
+            composite = np.hstack((display_img, panel))
+        except Exception:
+            composite = display_img
+        cv2.imshow(WINDOW_NAME, composite)
+    else:
+        cv2.imshow(WINDOW_NAME, display_img)
     key = cv2.waitKey(1) & 0xFF
     if key == ord('q'):
         break
@@ -457,6 +500,13 @@ while cap.isOpened():
     if key == ord('t'):
         notifications_enabled = not notifications_enabled
         print("Notifications ON" if notifications_enabled else "Notifications OFF")
+    if key == ord('s'):
+        split_view = not split_view
+        if split_view:
+            cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL)
+        else:
+            if FULLSCREEN_VIEW:
+                cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
 cap.release()
 cv2.destroyAllWindows()
