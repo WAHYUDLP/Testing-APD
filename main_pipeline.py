@@ -30,7 +30,7 @@ ENABLE_TELEGRAM = True
 # DATABASE_API_URL = "https://api-proyek-k3.com/pelanggaran" 
 
 # --- INISIALISASI MODEL ---
-model = YOLO('best.pt')
+model = YOLO('C:\\Users\\hamza\\Codes\\Capstone 26\\v11update\\Testing-APD\\best.pt')
 
 # Fallback ID (kalau auto-resolve gagal)
 APD_CLASS_MAP = {0: "helmet", 1: "mask", 7: "vest"}
@@ -118,15 +118,17 @@ def format_violation_type_id(vtype):
     return mapping.get(vtype, vtype.replace("_", " ").title())
 
 
-# def telegram_is_configured():
-#     return (
-#         ENABLE_TELEGRAM
-#         and TELEGRAM_BOT_TOKEN
-#         and TELEGRAM_CHAT_ID
-#         and TELEGRAM_BOT_TOKEN != "TOKEN_DARI_TEMANMU"
-#         and TELEGRAM_CHAT_ID != "CHAT_ID_GRUP"
-#     )
+def telegram_is_configured():
+    return (
+        ENABLE_TELEGRAM
+        and TELEGRAM_BOT_TOKEN
+        and TELEGRAM_CHAT_ID
+        and TELEGRAM_BOT_TOKEN != "8707229189:AAEPf1wB8XJ3b-_HieOR23qsVBi85zBKiks"
+        and TELEGRAM_CHAT_ID != "-1003886366274"
+    )
 
+# Token : 8707229189:AAEPf1wB8XJ3b-_HieOR23qsVBi85zBKiks
+#  Chat id: -1003886366274
 # ======================= KAMUS KONFIGURASI =======================
 # CONF_THRESHOLD
 # - Minimal confidence deteksi dari YOLO (0.0 - 1.0).
@@ -177,11 +179,12 @@ APD_CONF_THRESHOLD = {
     "mask": 0.25,
 }
 
+
 # Turunkan resolusi kamera dan frame inferensi untuk mengurangi lag di laptop
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 360
-INFERENCE_DOWNSCALE = 1.0  # set 0.75 atau 0.5 jika masih patah-patah
-FULLSCREEN_VIEW = True
+INFERENCE_DOWNSCALE = 0.5  # set 0.75 atau 0.5 jika masih patah-patah
+FULLSCREEN_VIEW = False
 DISPLAY_UPSCALE = 2.0  # upscale tampilan agar teks lebih tajam saat fullscreen
 
 # Ambang frame dibuat kecil supaya respons lebih cepat
@@ -229,7 +232,8 @@ def bbox_center(box):
 def buka_kamera(index_opsi=(0, 1, 2)):
     """Coba beberapa index kamera, lalu pilih yang benar-benar bisa baca frame."""
     for idx in index_opsi:
-        cap_uji = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        # cap_uji = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        cap_uji = cv2.VideoCapture(0)
         if not cap_uji.isOpened():
             cap_uji.release()
             continue
