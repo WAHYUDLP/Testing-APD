@@ -11,8 +11,8 @@ from collections import defaultdict
 
 # --- KONFIGURASI API ---
 # Minta ini ke temanmu yang sudah berhasil nyoba Telegram
-TELEGRAM_BOT_TOKEN = "TOKEN_DARI_TEMANMU"
-TELEGRAM_CHAT_ID = "CHAT_ID_GRUP"
+TELEGRAM_BOT_TOKEN = "8707229189:AAEPf1wB8XJ3b-_HieOR23qsVBi85zBKiks"
+TELEGRAM_CHAT_ID = "-1003886366274"
 
 # Daftar gratis di api.imgbb.com untuk dapat kuncinya
 IMGBB_API_KEY = "158ee9e068a89b28e5b374a664a8e192" 
@@ -104,14 +104,28 @@ def format_location_text():
     return SITE_LOCATION
 
 
-def telegram_is_configured():
-    return (
-        ENABLE_TELEGRAM
-        and TELEGRAM_BOT_TOKEN
-        and TELEGRAM_CHAT_ID
-        and TELEGRAM_BOT_TOKEN != "TOKEN_DARI_TEMANMU"
-        and TELEGRAM_CHAT_ID != "CHAT_ID_GRUP"
-    )
+def format_violation_type_id(vtype):
+    """Ubah kode pelanggaran internal menjadi kalimat Indonesia untuk notifikasi."""
+    mapping = {
+        "not_wearing_helmet": "Tidak Memakai Helm",
+        "not_wearing_vest": "Tidak Memakai Vest",
+        "not_wearing_mask": "Tidak Memakai Masker",
+        "not_wearing_any_apd": "Tidak Memakai APD Lengkap",
+        "attempt_remove_helmet": "Melepas Helm",
+        "attempt_remove_vest": "Melepas Vest",
+        "attempt_remove_mask": "Melepas Masker",
+    }
+    return mapping.get(vtype, vtype.replace("_", " ").title())
+
+
+# def telegram_is_configured():
+#     return (
+#         ENABLE_TELEGRAM
+#         and TELEGRAM_BOT_TOKEN
+#         and TELEGRAM_CHAT_ID
+#         and TELEGRAM_BOT_TOKEN != "TOKEN_DARI_TEMANMU"
+#         and TELEGRAM_CHAT_ID != "CHAT_ID_GRUP"
+#     )
 
 # ======================= KAMUS KONFIGURASI =======================
 # CONF_THRESHOLD
@@ -361,7 +375,8 @@ while cap.isOpened():
 
         event_time = now_local_str()
         event_location = format_location_text()
-        print(f"🚨 Pelanggaran K3: {vtype} (ID {tid}) | {event_time} | {event_location}")
+        violation_text = format_violation_type_id(vtype)
+        print(f"🚨 Pelanggaran K3: {violation_text} (ID {tid}) | {event_time} | {event_location}")
         apd_summary = ", ".join(
             f"{apd}: {'yes' if apd in current_present_apd else 'no'}"
             for apd in sorted(set(APD_CLASS_MAP.values()))
@@ -379,7 +394,7 @@ while cap.isOpened():
                 data_db = {
                     "waktu": event_time,
                     "pekerja_id": tid,
-                    "jenis_pelanggaran": vtype,
+                    "jenis_pelanggaran": violation_text,
                     "lokasi": event_location,
                     "foto_url": image_url,
                 }
@@ -389,8 +404,7 @@ while cap.isOpened():
                     pesan_tele = (
                         "⚠️ PELANGGARAN K3!\n"
                         f"Waktu: {event_time}\n"
-                        f"ID Pekerja: {tid}\n"
-                        f"Jenis: {vtype}\n"
+                        f"Jenis: {violation_text}\n"
                         f"Status APD saat ini: {apd_summary}\n"
                         f"Notifikasi ulang: tiap {TELEGRAM_RENOTIFY_INTERVAL_SEC // 60} menit jika masih melanggar\n"
                         f"Lokasi: {event_location}\n"
