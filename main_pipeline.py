@@ -30,8 +30,7 @@ ENABLE_TELEGRAM = True
 # DATABASE_API_URL = "https://api-proyek-k3.com/pelanggaran" 
 
 # --- INISIALISASI MODEL ---
-model = YOLO('C:\\Users\\hamza\\Codes\\Capstone 26\\v11update\\Testing-APD\\best.pt')
-
+model = YOLO('best.pt')
 # Fallback ID (kalau auto-resolve gagal)
 APD_CLASS_MAP = {0: "helmet", 1: "mask", 7: "vest"}
 PERSON_CLASS_ID = 5
@@ -215,13 +214,14 @@ if cap is None:
 
 # Minta kamera kirim resolusi lebih kecil agar proses lebih ringan
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
+if CAMERA_HEIGHT is not None:
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
 
 actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 print(f"INFO: resolusi kamera aktif = {actual_w}x{actual_h}")
 
-cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_AUTOSIZE)
 if FULLSCREEN_VIEW:
     cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     
@@ -488,11 +488,7 @@ while cap.isOpened():
         print("Notifications ON" if notifications_enabled else "Notifications OFF")
     if key == ord('s'):
         split_view = not split_view
-        if split_view:
-            cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL)
-        else:
-            if FULLSCREEN_VIEW:
-                cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+        print("Split view ON" if split_view else "Split view OFF")
 
 cap.release()
 cv2.destroyAllWindows()
