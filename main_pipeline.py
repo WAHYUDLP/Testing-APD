@@ -1,3 +1,4 @@
+
 import cv2
 import requests
 import os
@@ -10,11 +11,9 @@ from ultralytics import YOLO
 from collections import defaultdict
 
 # --- KONFIGURASI API ---
-# Minta ini ke yang sudah berhasil nyoba Telegram
+# (Kita biarkan saja variabel ini sebagai pajangan, karena sekarang urusan Telegram dipegang Backend)
 TELEGRAM_BOT_TOKEN = "8707229189:AAEPf1wB8XJ3b-_HieOR23qsVBi85zBKiks"
 TELEGRAM_CHAT_ID = "-1003886366274"
-
-# Daftar gratis di api.imgbb.com untuk dapat kuncinya
 IMGBB_API_KEY = "158ee9e068a89b28e5b374a664a8e192" 
 
 # Info lokasi kejadian (isi sesuai lokasi proyek)
@@ -23,22 +22,14 @@ SITE_LAT = ""
 SITE_LON = ""
 TIMEZONE_NAME = "Asia/Jakarta"
 
-# Aktifkan kirim Telegram jika token/chat id sudah valid
-ENABLE_TELEGRAM = True
-
-# URL Database Dashboard (Misal pakai REST API yang dibuat tim web/SI)
-# DATABASE_API_URL = "https://api-proyek-k3.com/pelanggaran" 
-
 # --- INISIALISASI MODEL ---
 model = YOLO('best.pt')
 # Fallback ID (kalau auto-resolve gagal)
 APD_CLASS_MAP = {0: "helmet", 1: "mask", 7: "vest"}
 PERSON_CLASS_ID = 5
 
-
 def _norm_label(text):
     return str(text).strip().lower().replace("-", "_").replace(" ", "_")
-
 
 def _build_name_map(names_obj):
     if isinstance(names_obj, dict):
@@ -46,7 +37,6 @@ def _build_name_map(names_obj):
     if isinstance(names_obj, list):
         return {_norm_label(name): idx for idx, name in enumerate(names_obj)}
     return {}
-
 
 def _find_class_id(name_to_id, aliases):
     # Exact match dulu
@@ -61,7 +51,6 @@ def _find_class_id(name_to_id, aliases):
             if normalized in label:
                 return cid
     return None
-
 
 name_to_id = _build_name_map(model.model.names)
 resolved_person_id = _find_class_id(name_to_id, ["person", "people", "worker"])
@@ -88,7 +77,6 @@ print(f"INFO: APD class map = {APD_CLASS_MAP}")
 
 WINDOW_NAME = "Monitor K3 - YOLO11s"
 
-
 def now_local_str():
     try:
         current = datetime.now(ZoneInfo(TIMEZONE_NAME))
@@ -96,12 +84,10 @@ def now_local_str():
         current = datetime.now()
     return current.strftime("%Y-%m-%d %H:%M:%S")
 
-
 def format_location_text():
     if SITE_LAT and SITE_LON:
         return f"{SITE_LOCATION} ({SITE_LAT}, {SITE_LON})"
     return SITE_LOCATION
-
 
 def format_violation_type_id(vtype):
     """Ubah kode pelanggaran internal menjadi kalimat Indonesia untuk notifikasi."""
@@ -116,16 +102,6 @@ def format_violation_type_id(vtype):
     }
     return mapping.get(vtype, vtype.replace("_", " ").title())
 
-
-def telegram_is_configured():
-    return (
-        ENABLE_TELEGRAM
-        and TELEGRAM_BOT_TOKEN
-        and TELEGRAM_CHAT_ID
-        and TELEGRAM_BOT_TOKEN != "8707229189:AAEPf1wB8XJ3b-_HieOR23qsVBi85zBKiks"
-        and TELEGRAM_CHAT_ID != "-1003886366274"
-    )
-
 # Ambang overlap APD ke person
 APD_PERSON_IOU_THRESHOLD = 0.01
 
@@ -137,7 +113,6 @@ APD_CONF_THRESHOLD = {
     "vest": 0.50,
     "mask": 0.25,
 }
-
 
 # Turunkan resolusi kamera dan frame inferensi untuk mengurangi lag di laptop
 CAMERA_WIDTH = 640
@@ -158,7 +133,6 @@ tracked_states = {}
 last_violation_notification = {}
 recent_alert_locations = defaultdict(list)
 recent_violations = []
-
 
 def bbox_iou(box_a, box_b):
     ax1, ay1, ax2, ay2 = box_a
@@ -182,16 +156,13 @@ def bbox_iou(box_a, box_b):
         return 0.0
     return inter_area / union
 
-
 def bbox_center(box):
     x1, y1, x2, y2 = box
     return (x1 + x2) / 2.0, (y1 + y2) / 2.0
 
-
 def buka_kamera(index_opsi=(0, 1, 2)):
     """Coba beberapa index kamera, lalu pilih yang benar-benar bisa baca frame."""
     for idx in index_opsi:
-        # cap_uji = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
         cap_uji = cv2.VideoCapture(0)
         if not cap_uji.isOpened():
             cap_uji.release()
@@ -203,9 +174,7 @@ def buka_kamera(index_opsi=(0, 1, 2)):
             return cap_uji
 
         cap_uji.release()
-
     return None
-
 
 cap = buka_kamera()
 if cap is None:
@@ -232,15 +201,10 @@ split_view = False
 
 # Runtime toggles
 monitoring_enabled = True
-notifications_enabled = telegram_is_configured()
 
-print("Kontrol runtime: 'p' pause/resume, 't' toggle Telegram, 'q' quit")
-
+print("Kontrol runtime: 'p' pause/resume, 's' split view, 'q' quit")
 print("=== SISTEM MONITORING K3 AKTIF ===")
-print(
-    "INFO: Logika pelanggaran berbasis kelas person."
-    " APD akan di-associate ke person via overlap bounding box (IoU)."
-)
+print("INFO: Logika pelanggaran berbasis kelas person. APD akan di-associate ke person via overlap bounding box (IoU).")
 
 while cap.isOpened():
     success, frame = cap.read()
@@ -267,14 +231,11 @@ while cap.isOpened():
         if key == ord('p'):
             monitoring_enabled = not monitoring_enabled
             print("Monitoring paused" if not monitoring_enabled else "Monitoring resumed")
-        if key == ord('t'):
-            notifications_enabled = not notifications_enabled
-            print("Notifications ON" if notifications_enabled else "Notifications OFF")
         continue
 
     # 1. DETEKSI: Jalankan YOLO11s dengan mode tracking
     results = model.track(infer_frame, persist=True, tracker="bytetrack.yaml", conf=CONF_THRESHOLD, verbose=False)
-    # Kumpulkan person dan APD dari frame saat ini
+    
     person_boxes = {}
     apd_boxes = []
 
@@ -315,16 +276,19 @@ while cap.isOpened():
         if best_person_id is not None and best_iou >= APD_PERSON_IOU_THRESHOLD:
             detected_apd_per_person[best_person_id].add(apd_name)
 
-    # Helper: laporkan pelanggaran (simpan, upload, catat)
+    # =========================================================================
+    # FUNGSI REPORT VIOLATION YANG BARU (KIRIM KE BACKEND FASTAPI TEMANMU)
+    # =========================================================================
     def report_violation(tid, vtype, frame_img, current_present_apd, person_bbox):
         key_violation = (tid, vtype)
         now_ts = time.time()
         last_sent_ts = last_violation_notification.get(key_violation)
+        
+        # Anti-Spam Berdasarkan Waktu
         if last_sent_ts is not None and (now_ts - last_sent_ts) < TELEGRAM_RENOTIFY_INTERVAL_SEC:
             return
 
-        # Anti-duplicate lintas ID tracker: jika lokasinya sangat dekat dan masih dalam cooldown,
-        # anggap ini orang yang sama meskipun track ID berubah.
+        # Anti-Duplicate Lintas ID Tracker (Berdasarkan Jarak/Lokasi)
         center_x, center_y = bbox_center(person_bbox)
         pruned = []
         suppress_by_location = False
@@ -338,61 +302,44 @@ while cap.isOpened():
             return
 
         event_time = now_local_str()
-        event_location = format_location_text()
-        violation_text = format_violation_type_id(vtype)
-        print(f"🚨 Pelanggaran K3: {violation_text} (ID {tid}) | {event_time} | {event_location}")
-        apd_summary = ", ".join(
-            f"{apd}: {'yes' if apd in current_present_apd else 'no'}"
-            for apd in sorted(set(APD_CLASS_MAP.values()))
-        )
-        temp_filename = f"temp_pelanggar_{tid}_{vtype}.jpg"
-        cv2.imwrite(temp_filename, frame_img)
+        print(f"🚨 Pelanggaran K3: {vtype} (ID {tid}) | {event_time} | {SITE_LOCATION}")
+
+        # 1. Simpan Foto Secara Lokal ke Komputer
+        os.makedirs("bukti_pelanggaran", exist_ok=True) 
+        waktu_file = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_path = f"bukti_pelanggaran/pelanggar_ID{tid}_{vtype}_{waktu_file}.jpg"
+        cv2.imwrite(file_path, frame_img)
+        
+        # Ambil path lengkap (C:/.../...)
+        absolute_path = os.path.abspath(file_path)
+
+        # 2. Siapkan Payload untuk Backend FastAPI
+        payload_be = {
+            "camera_id": SITE_LOCATION,
+            "label": vtype,
+            "image_path": absolute_path,
+            "id_pekerja": str(tid)
+        }
+
+        # 3. Tembak ke API Backend Temanmu
         try:
-            with open(temp_filename, "rb") as file:
-                payload = {"key": IMGBB_API_KEY}
-                files = {"image": file}
-                res_cloud = requests.post("https://api.imgbb.com/1/upload", params=payload, files=files)
-            if res_cloud.status_code == 200:
-                image_url = res_cloud.json()["data"]["url"]
-                print(f"✅ Foto berhasil diupload ke Cloud: {image_url}")
-                data_db = {
-                    "waktu": event_time,
-                    "pekerja_id": tid,
-                    "jenis_pelanggaran": violation_text,
-                    "lokasi": event_location,
-                    "foto_url": image_url,
-                }
-                # requests.post(DATABASE_API_URL, json=data_db)
-
-                if notifications_enabled:
-                    pesan_tele = (
-                        "⚠️ PELANGGARAN K3!\n"
-                        f"Waktu: {event_time}\n"
-                        f"Jenis: {violation_text}\n"
-                        f"Status APD saat ini: {apd_summary}\n"
-                        f"Notifikasi ulang: tiap {TELEGRAM_RENOTIFY_INTERVAL_SEC // 60} menit jika masih melanggar\n"
-                        f"Lokasi: {event_location}\n"
-                        f"Bukti: {image_url}"
-                    )
-                    url_tele = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-                    try:
-                        requests.post(url_tele, data={"chat_id": TELEGRAM_CHAT_ID, "text": pesan_tele}, timeout=8)
-                    except Exception:
-                        pass
-
-                pelanggar_tercatat.add(key_violation)
-                last_violation_notification[key_violation] = now_ts
-                recent_alert_locations[vtype].append((now_ts, center_x, center_y))
-                # Simpan ringkasan pelanggaran untuk tampilan UI
-                recent_violations.insert(0, (now_ts, f"{event_time} | ID {tid} | {vtype}"))
-                # batasi panjang list
-                if len(recent_violations) > 20:
-                    recent_violations.pop()
+            url_be = "http://localhost:8000/report-violation" # Pastikan port temanmu 8000
+            res = requests.post(url_be, json=payload_be, timeout=5)
+            if res.status_code == 200:
+                print(f"✅ Data ID {tid} berhasil dikirim ke Backend FastAPI!")
+            else:
+                print(f"⚠️ Backend menolak! Status: {res.status_code}")
         except Exception as e:
-            print(f"Terjadi kesalahan saat upload/kirim: {e}")
-        finally:
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
+            print(f"❌ Gagal koneksi ke Backend: Server belum nyala atau port salah.")
+
+        # 4. Update Logika Tracker UI AI
+        pelanggar_tercatat.add(key_violation)
+        last_violation_notification[key_violation] = now_ts
+        recent_alert_locations[vtype].append((now_ts, center_x, center_y))
+        recent_violations.insert(0, (now_ts, f"{event_time} | ID {tid} | {vtype}"))
+        if len(recent_violations) > 20:
+            recent_violations.pop()
+    # =========================================================================
 
     # Update state hanya untuk person yang benar-benar terlihat pada frame ini
     for person_id in person_boxes:
@@ -414,7 +361,7 @@ while cap.isOpened():
             else:
                 state["missing_counts"][apd_name] += 1
 
-        # Deteksi: mencoba melepas (pernah kelihatan, lalu hilang beberapa frame)
+        # Deteksi: mencoba melepas
         for apd_name in APD_CLASS_MAP.values():
             if (
                 state["missing_counts"][apd_name] >= MISSING_FRAMES_THRESHOLD
@@ -429,11 +376,11 @@ while cap.isOpened():
                     person_boxes[person_id]["bbox"],
                 )
 
-        # Deteksi: tidak mengenakan semua APD (helm, rompi, masker)
+        # Deteksi: tidak mengenakan semua APD
         if state["age"] >= NEVER_WEAR_FRAMES and not any(apd in state["ever"] for apd in APD_CLASS_MAP.values()):
             report_violation(person_id, "not_wearing_any_apd", frame, current_present, person_boxes[person_id]["bbox"])
         else:
-            # Deteksi per-APD jika hanya sebagian yang tidak pernah terlihat
+            # Deteksi per-APD
             for apd_name in APD_CLASS_MAP.values():
                 if state["age"] >= NEVER_WEAR_FRAMES and apd_name not in state["ever"]:
                     report_violation(
@@ -444,17 +391,14 @@ while cap.isOpened():
                         person_boxes[person_id]["bbox"],
                     )
 
-    # Tampilkan hasil visual pakai renderer bawaan YOLO:
-    # label lebih rapi, support semua kelas, dan warna otomatis per kelas.
+    # Tampilkan hasil visual
     display_img = results[0].plot()
 
-    # Optional upscale setelah plotting agar lebih nyaman di fullscreen.
     if DISPLAY_UPSCALE > 1.0:
         up_w = int(display_img.shape[1] * DISPLAY_UPSCALE)
         up_h = int(display_img.shape[0] * DISPLAY_UPSCALE)
         display_img = cv2.resize(display_img, (up_w, up_h), interpolation=cv2.INTER_CUBIC)
 
-    # Jika split_view aktif, buat panel kanan dengan riwayat pelanggaran
     if split_view:
         panel_w = 380
         h = display_img.shape[0]
@@ -477,15 +421,13 @@ while cap.isOpened():
         cv2.imshow(WINDOW_NAME, composite)
     else:
         cv2.imshow(WINDOW_NAME, display_img)
+        
     key = cv2.waitKey(1) & 0xFF
     if key == ord('q'):
         break
     if key == ord('p'):
         monitoring_enabled = not monitoring_enabled
         print("Monitoring paused" if not monitoring_enabled else "Monitoring resumed")
-    if key == ord('t'):
-        notifications_enabled = not notifications_enabled
-        print("Notifications ON" if notifications_enabled else "Notifications OFF")
     if key == ord('s'):
         split_view = not split_view
         print("Split view ON" if split_view else "Split view OFF")
