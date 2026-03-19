@@ -10,8 +10,28 @@ from ultralytics import YOLO
 from collections import defaultdict
 
 # --- KONFIGURASI API ---
-# Daftar gratis di api.imgbb.com untuk dapat kuncinya
-IMGBB_API_KEY = "158ee9e068a89b28e5b374a664a8e192" 
+# Daftar gratis di api.imgbb.com untuk dapat kuncinya.
+def _read_env_file_value(key_name, env_path=".env"):
+    if not os.path.exists(env_path):
+        return ""
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == key_name:
+                    return v.strip().strip('"').strip("'")
+    except Exception:
+        return ""
+    return ""
+
+IMGBB_API_KEY = os.getenv("IMGBB_API_KEY", "").strip() or _read_env_file_value("IMGBB_API_KEY")
+if not IMGBB_API_KEY:
+    print("ERROR: IMGBB_API_KEY belum diset.")
+    print("Isi di environment variable atau file .env (IMGBB_API_KEY=your_key).")
+    raise SystemExit(1)
 
 # Info lokasi kejadian (isi sesuai lokasi proyek)
 SITE_LOCATION = "Area Proyek A"

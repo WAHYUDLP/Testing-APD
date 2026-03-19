@@ -57,7 +57,7 @@ Keterangan field:
 
 ## Konfigurasi Penting di Script
 Di `mainWithLinkImgb.py`:
-- `IMGBB_API_KEY`: API key ImgBB.
+- `IMGBB_API_KEY`: dibaca otomatis dari environment variable atau file `.env`.
 - `SITE_LOCATION`, `SITE_LAT`, `SITE_LON`, `TIMEZONE_NAME`: metadata lokasi.
 - `URL_BACKEND`: endpoint backend tujuan.
 - Threshold deteksi:
@@ -87,7 +87,8 @@ Python package:
 2. Buat virtual env.
 3. Aktifkan virtual env.
 4. Install dependency.
-5. Jalankan script.
+5. Buat file `.env` dari `.env.example`, lalu isi API key sekali saja.
+6. Jalankan script.
 
 Contoh PowerShell (Windows):
 
@@ -98,6 +99,26 @@ py -m venv .venv
 pip install ultralytics opencv-python requests numpy
 python mainWithLinkImgb.py
 ```
+
+Isi file `.env` (sekali saja):
+
+```env
+IMGBB_API_KEY=your_key_here
+```
+
+Alternatif (kalau tetap mau pakai environment variable):
+
+```powershell
+$env:IMGBB_API_KEY="your_key_here"
+```
+
+Set permanen (opsional):
+
+```powershell
+setx IMGBB_API_KEY "your_key_here"
+```
+
+Setelah `setx`, tutup lalu buka ulang terminal.
 
 Kontrol saat runtime:
 - `p`: pause/resume
@@ -191,15 +212,26 @@ Sudah ditangani dengan backend kamera DirectShow di Windows. Jika masih muncul:
 
 ## Catatan Keamanan
 - Jangan commit API key ke repo publik.
-- Disarankan pindahkan `IMGBB_API_KEY` ke environment variable.
+- File `.env` sudah di-ignore oleh git, jadi aman untuk key lokal.
+- Script menerima `IMGBB_API_KEY` dari `.env` atau environment variable.
 
-Contoh:
+Contoh `.env` lokal:
+
+```env
+IMGBB_API_KEY=your_key_here
+```
+
+Contoh set sementara:
 
 ```powershell
 $env:IMGBB_API_KEY="your_key_here"
 ```
 
-Lalu di script, ambil dari `os.getenv("IMGBB_API_KEY")`.
+Contoh set permanen:
+
+```powershell
+setx IMGBB_API_KEY "your_key_here"
+```
 
 ## Checklist Integrasi
 - `best.pt` tersedia.
